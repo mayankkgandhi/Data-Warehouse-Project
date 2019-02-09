@@ -38,5 +38,5 @@ Goals: The reports generated from this project will answer to questions like,
 
 ## Dimensional Modelling - Fact Constellation
 
-![image](https://user-images.githubusercontent.com/20474402/52524805-23938680-2c99-11e9-9984-3f3941ad4d29.png)
+![final er-small](https://user-images.githubusercontent.com/20474402/52524962-c26cb280-2c9a-11e9-82b7-99882ed72eb2.png)
 
