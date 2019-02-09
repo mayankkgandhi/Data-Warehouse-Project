@@ -9,6 +9,7 @@ CREATE TABLE `Calender_Dim` (
   `Year` int,
     `FullDate` datetime,
 );
+
 B.	PRODUCT DIMENSION
 CREATE TABLE "Product_Dim" (
     "ProductID (PK)" int,
@@ -17,6 +18,7 @@ CREATE TABLE "Product_Dim" (
     "QuantityPerUnit" nvarchar(20),
     "UnitPrice" money 
 )
+
 C.	EMPLOYEE DIMENSION
 CREATE TABLE "Employee_Dim" (
     "EmployeeID (Pk)” int,
@@ -27,7 +29,6 @@ CREATE TABLE "Employee_Dim" (
     "Country" nvarchar(15)
     )
 
-
 D.	CUSTOMER DIMENSION
 CREATE TABLE "Customer_Dim" (
     "CustomerID (Pk)” nvarchar(5),
@@ -36,6 +37,7 @@ CREATE TABLE "Customer_Dim" (
     "Region" nvarchar(15), 
     "Country" nvarchar(15)
 )
+
 E.	ORDERS FACT
 CREATE TABLE `Orders_Fact` (
   `Order_Sales_ID (Pk)` int,
@@ -46,6 +48,7 @@ CREATE TABLE `Orders_Fact` (
   `Order_Revenue` money,
   `Quantity` smallint
 );
+
 F.	EMPLOYEE FACT
 CREATE TABLE `Employee_Fact` (
   `EmpSales_ID (Pk)` int,
@@ -148,7 +151,7 @@ Visualization- R code:
 
 library(RODBC)
 conn = odbcDriverConnect('driver={SQL Server};
-                        server=DESKTOP-9JMFTR6\\SQLEXPRESS;
+                        server=DESKTOP-9JMYTH6\\SQLEXPRESS;
                         database=NORTHWIND_DW;
                         trusted_connection=true; ')
 
@@ -173,7 +176,6 @@ title(xlab="Products", line=10, cex.lab=1.2 )
 title(ylab="Revenue", line=4, cex.lab=1.2 )
 
 
-
 B.	Low revenue Products: 
 
 data = sqlQuery(conn,"SELECT p.ProductName,ROUND(SUM(ef.Revenue),2) AS  
@@ -193,7 +195,6 @@ args.legend =list(horiz=TRUE,  x="topright", cex=0.5) )
 title(ylab="Products", line=12 ,cex.lab=1.2)
 
 
-
 C.	Revenue Per Employee:
 
 data_Emp =   sqlQuery(conn,"SELECT  DISTINCT Ef.EmployeeID, 
@@ -208,8 +209,6 @@ args.legend =list(horiz=TRUE,  x="topright", cex=0.5) )
 
 title(ylab="Revenue", line=5, cex.lab=1.2)
 title(xlab="Employee ID", line=2, cex.lab=1.2)
-
-
 
 
 D.	Revenue Per Year:
@@ -230,4 +229,47 @@ pie3D(revenue_data$Total_Revenue,labels=paste(sales_percent,"%",sep='')
 
 legend("topright", c("1996", "1997", "1998"), 
               fill = c("Green","Blue","Red"), cex=0.8)
+	    
+	
+Neo4j:
+
+A.	Loading Products Tables as CSV file to Neo4j
+LOAD CSV WITH HEADERS FROM "file:///products.csv" AS row
+CREATE (n: Product)
+SET n = row,
+n.unitPrice = toFloat(row.unitPrice),
+n.unitsInStock = toInteger (row.unitsInStock), n.unitsOnOrder = toInteger(row.unitsOnOrder),
+n.reorderLevel = toInteger(row.reorderLevel), n.discontinued = (row.discontinued <> "0")
+Added 77 labels, created 77 nodes, completed after 120 ms.
+
+B.	Loading Suppliers Tables as CSV file to Neo4j
+
+LOAD CSV WITH HEADERS FROM " file:///categories.csv" AS row 
+CREATE (n: Category) 
+SET n = row
+Added 8 labels, created 8 nodes, set 32 properties, completed after 145 ms.
+
+C.	Loading Category Tables as CSV file to Neo4j
+
+LOAD CSV WITH HEADERS FROM " file:///suppliers.csv" AS row 
+CREATE (n: Supplier) 
+SET n = row
+Added 29 labels, created 29 nodes, set 348 properties, completed after 156 ms
+
+D.	Create Index:
+
+CREATE INDEX ON :Product(ProductID) 
+CREATE INDEX ON :Category(CategoryID) 
+CREATE INDEX ON :Supplier(SupplierID)
+
+E.	RELATIONSHIPS: 
+MATCH (p:Product),(c:Category) 
+WHERE p.CategoryID = c.CategoryID 
+CREATE (p)-[:PART_OF]->(c) 
+Return p,c limit 20
+Created 77 relationships, completed after 28 ms. 
+
+F.	GRAPHICAL PRESENTATION:
+MATCH p=()-[r:SUPPLIES]->() RETURN p limit 25
+
 
