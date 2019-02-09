@@ -1,0 +1,233 @@
+Dimension & Fact tables Queries:
+
+A.	CALENDER DIMENSION
+CREATE TABLE `Calender_Dim` (
+  `DateKey (Pk)` int,
+  `DayOfMonth` int,
+  `Month` int,
+  `Quarter` nvarchar(10),
+  `Year` int,
+    `FullDate` datetime,
+);
+B.	PRODUCT DIMENSION
+CREATE TABLE "Product_Dim" (
+    "ProductID (PK)" int,
+    "ProductName" nvarchar(40), 
+    "CategoryID" int,
+    "QuantityPerUnit" nvarchar(20),
+    "UnitPrice" money 
+)
+C.	EMPLOYEE DIMENSION
+CREATE TABLE "Employee_Dim" (
+    "EmployeeID (Pk)” int,
+    "LastName" nvarchar(20),
+    "FirstName" nvarchar(10),
+    "City" nvarchar(15),
+    "Region" nvarchar(15),
+    "Country" nvarchar(15)
+    )
+
+
+D.	CUSTOMER DIMENSION
+CREATE TABLE "Customer_Dim" (
+    "CustomerID (Pk)” nvarchar(5),
+    "CustomerName" nvarchar(30), 
+   "City" nvarchar(15),
+    "Region" nvarchar(15), 
+    "Country" nvarchar(15)
+)
+E.	ORDERS FACT
+CREATE TABLE `Orders_Fact` (
+  `Order_Sales_ID (Pk)` int,
+  `DateKey (FK)` int,
+  `EmployeeID (FK)` int,
+  `CustomerID (FK)` nvarchar(10),
+  `ProductID (FK)` int,
+  `Order_Revenue` money,
+  `Quantity` smallint
+);
+F.	EMPLOYEE FACT
+CREATE TABLE `Employee_Fact` (
+  `EmpSales_ID (Pk)` int,
+  `DateKey (FK)` int,
+  `EmployeeID (FK)` int,
+  `ProductID (FK)` iny,
+`Quantity` smallint,
+  `Revenue` real,
+`Discount` real
+);
+
+
+Reporting -Stored Procedures: 
+
+A.	Country-wise Orders
+USE [North_wind_DW]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[usp_CustomerCountry]
+	@Country nvarchar(15)
+AS
+BEGIN
+	SET NOCOUNT ON;
+	SELECT Customer_Dim.CustomerID, Customer_Dim.ContactName,  
+       Order_Fact.Order_Revenue
+       FROM     Order_Fact INNER JOIN 
+       Customer_Dim ON Order_Fact.CustomerID = Customer_Dim.CustomerID
+       WHERE Customer_Dim.Country = @Country
+END
+
+
+B.	Customer Contribution
+
+USE [North_wind_DW]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[usp_CustomerSales] 
+	@CustomerID nvarchar(10)
+AS
+BEGIN
+	SET NOCOUNT ON;
+       SELECT  Order_Fact.ProductID, Customer_Dim.ContactName, Order_Fact.CustomerID, 
+       Order_Fact.Order_Revenue
+       FROM Customer_Dim INNER JOIN
+       Order_Fact ON Customer_Dim.CustomerID = Order_Fact.CustomerID
+	WHERE Customer_Dim.CustomerID = @CustomerID
+END
+
+
+C.	Employee Contribution
+
+USE [North_wind_DW]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[usp_EmpRevenue]
+	@EmployeeID int
+AS
+BEGIN
+	SET NOCOUNT ON;
+	SELECT DISTINCT Employee_Dim.EmployeeID, { fn CONCAT(Employee_Dim.FirstName+ ' 
+       ' , Employee_Dim.LastName) } AS Employee_Name, Employee_Fact.ProductID,         
+       Employee_Fact.Quantity, Employee_Fact.Revenue
+       FROM     Employee_Dim INNER JOIN 
+       Employee_Fact ON Employee_Dim.EmployeeID = Employee_Fact.EmployeeID
+       WHERE Employee_Dim.EmployeeID=@EmployeeID
+
+END
+
+
+D.	Revenue Per Year
+
+USE [North_wind_DW]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[usp_SalesByYear] 
+@Year int
+AS
+BEGIN
+	SET NOCOUNT ON;
+       SELECT  Order_Fact.ProductID, Order_Fact.Quantity, Order_Fact.Order_Revenue, 
+       Calender_Dim.Year
+       FROM  Order_Fact INNER JOIN
+       Calender_Dim ON Order_Fact.DateKey = Calender_Dim.DateKey
+       WHERE Calender_Dim.Year= @Year
+END
+
+Visualization- R code: 
+
+library(RODBC)
+conn = odbcDriverConnect('driver={SQL Server};
+                        server=DESKTOP-9JMFTR6\\SQLEXPRESS;
+                        database=NORTHWIND_DW;
+                        trusted_connection=true; ')
+
+A.	Top 10 Products
+
+productsByYear = sqlQuery(conn," SELECT TOP 10 Order_Fact.ProductID,
+                               SUM(Order_Fact.Order_Revenue) as TOTAL_REVENUE,     
+                               Product_Dim.ProductName
+                               FROM     Calender_Dim INNER JOIN
+                               Order_Fact ON Calender_Dim.DateKey = Order_Fact.DateKey          
+                               INNER JOIN
+                               Product_Dim ON Order_Fact.ProductID = 
+                               Product_Dim.ProductID
+                               GROUP BY  Order_Fact.ProductID, Product_Dim.ProductName 
+                               ORDER BY TOTAL_REVENUE DESC")
+par(mar=c(11,5,2,7))
+barplot(productsByYear$TOTAL_REVENUE, main="Top 10 Products ",
+            horiz=F, las=1,col="Magenta",las=2, space = c(0.2, 0.1), border = "yellow",
+            names.arg = productsByYear$ProductName,
+            args.legend =list(horiz=TRUE,  x="topright", cex=0.5) )
+title(xlab="Products", line=10, cex.lab=1.2 )
+title(ylab="Revenue", line=4, cex.lab=1.2 )
+
+
+
+B.	Low revenue Products: 
+
+data = sqlQuery(conn,"SELECT p.ProductName,ROUND(SUM(ef.Revenue),2) AS  
+           Sales FROM [dbo].[Product_Dim] p INNER JOIN [dbo].[Employee_Fact] ef
+           ON p.ProductID=ef.ProductID GROUP BY p.ProductName  
+           ORDER BY Sales ASC")
+
+Maximun_Sales_Product = data$ProductName[data$Sales < 5000]
+Maximun_Sales = data$Sales[data$Sales < 5000]
+par(mar=c(5,14,4,4))
+
+barplot(Maximun_Sales, main="Product Revenue (<5000)",horiz=T, las=1,
+col="light blue", xlab="Sales", ylab="", space = c(0.2, 0.1),
+names.arg =Maximun_Sales_Product,
+args.legend =list(horiz=TRUE,  x="topright", cex=0.5) )
+
+title(ylab="Products", line=12 ,cex.lab=1.2)
+
+
+
+C.	Revenue Per Employee:
+
+data_Emp =   sqlQuery(conn,"SELECT  DISTINCT Ef.EmployeeID, 
+                      ROUND(SUM(Revenue),2) as Revenue
+                      FROM     Employee_Fact as Ef
+                      GROUP BY  Ef.EmployeeID 
+                      ORDER by Ef.EmployeeID ASC ")
+
+par(mar=c(4,7,3,5))
+barplot(data_Emp$Revenue, main="Total sales by each Employee",horiz=F, las=1,col="light Green", border = "dark green", names.arg = data_Emp$EmployeeID,
+args.legend =list(horiz=TRUE,  x="topright", cex=0.5) )
+
+title(ylab="Revenue", line=5, cex.lab=1.2)
+title(xlab="Employee ID", line=2, cex.lab=1.2)
+
+
+
+
+D.	Revenue Per Year:
+
+library(plotrix)
+par(mar=c(4,4,4,4))
+
+revenue_data = sqlQuery(conn, "SELECT Calender_Dim.Year, 
+                          sum(Order_Fact.Order_Revenue) as Total_Revenue
+                          FROM     Calender_Dim INNER JOIN
+                          Order_Fact ON Calender_Dim.DateKey = Order_Fact.DateKey
+                          WHERE (Calender_Dim.Year) in ('1996','1997','1998')
+                          GROUP BY Calender_Dim.Year ")
+sales_percent =round(((revenue_data$Total_Revenue * 100)/ sum(revenue_data$Total_Revenue)),1)
+
+pie3D(revenue_data$Total_Revenue,labels=paste(sales_percent,"%",sep='')
+            ,explode=0.1, labelpos=pos, main="Revenue Percentage per Year ")
+
+legend("topright", c("1996", "1997", "1998"), 
+              fill = c("Green","Blue","Red"), cex=0.8)
+
